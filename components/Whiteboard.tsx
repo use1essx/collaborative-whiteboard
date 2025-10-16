@@ -90,9 +90,11 @@ export default function Whiteboard() {
     }
   }, [context, drawLine])
 
-  // Sync with other users - faster polling
+  // Sync with other users - slower but more reliable
   useEffect(() => {
     if (!context) return
+    
+    let lastStrokeCount = 0
     
     const syncInterval = setInterval(async () => {
       try {
@@ -100,27 +102,37 @@ export default function Whiteboard() {
         const data = await response.json()
         
         if (data.strokes && data.strokes.length > 0) {
-          // Draw new strokes from other users
-          const lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0')
-          const newStrokes = data.strokes.filter((stroke: DrawData) => stroke.timestamp > lastSyncTime)
-          
-          if (newStrokes.length > 0) {
-            newStrokes.forEach((stroke: DrawData) => {
-              drawLine(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.color, stroke.lineWidth, stroke.isEraser)
-            })
+          // If stroke count changed, we have new data
+          if (data.strokes.length !== lastStrokeCount) {
+            // Get only new strokes since last sync
+            const lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0')
+            const newStrokes = data.strokes.filter((stroke: DrawData) => stroke.timestamp > lastSyncTime)
             
-            // Save to localStorage for persistence
-            const savedStrokes = localStorage.getItem('canvasStrokes')
-            const allStrokes = savedStrokes ? JSON.parse(savedStrokes) : []
-            allStrokes.push(...newStrokes)
-            localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
-            localStorage.setItem('lastSyncTime', Date.now().toString())
+            if (newStrokes.length > 0) {
+              console.log(`Syncing ${newStrokes.length} new strokes...`)
+              
+              newStrokes.forEach((stroke: DrawData) => {
+                drawLine(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.color, stroke.lineWidth, stroke.isEraser)
+              })
+              
+              // Save to localStorage for persistence
+              const savedStrokes = localStorage.getItem('canvasStrokes')
+              const allStrokes = savedStrokes ? JSON.parse(savedStrokes) : []
+              allStrokes.push(...newStrokes)
+              localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
+              
+              // Update last sync time to the newest stroke timestamp
+              const newestTimestamp = Math.max(...newStrokes.map(s => s.timestamp))
+              localStorage.setItem('lastSyncTime', newestTimestamp.toString())
+            }
+            
+            lastStrokeCount = data.strokes.length
           }
         }
       } catch (error) {
         console.error('Sync error:', error)
       }
-    }, 300) // Sync every 300ms (faster!)
+    }, 1500) // Sync every 1.5 seconds (slower but complete)
 
     return () => clearInterval(syncInterval)
   }, [context, drawLine])
@@ -243,6 +255,40 @@ export default function Whiteboard() {
     flushStrokeBuffer()
   }
 
+  const syncNow = async () => {
+    try {
+      const response = await fetch('/api/canvas')
+      const data = await response.json()
+      
+      if (data.strokes && data.strokes.length > 0) {
+        const lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0')
+        const newStrokes = data.strokes.filter((stroke: DrawData) => stroke.timestamp > lastSyncTime)
+        
+        if (newStrokes.length > 0) {
+          console.log(`Manual sync: ${newStrokes.length} new strokes`)
+          
+          newStrokes.forEach((stroke: DrawData) => {
+            drawLine(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.color, stroke.lineWidth, stroke.isEraser)
+          })
+          
+          // Save to localStorage
+          const savedStrokes = localStorage.getItem('canvasStrokes')
+          const allStrokes = savedStrokes ? JSON.parse(savedStrokes) : []
+          allStrokes.push(...newStrokes)
+          localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
+          
+          // Update last sync time
+          const newestTimestamp = Math.max(...newStrokes.map(s => s.timestamp))
+          localStorage.setItem('lastSyncTime', newestTimestamp.toString())
+        } else {
+          console.log('Already up to date!')
+        }
+      }
+    } catch (error) {
+      console.error('Manual sync error:', error)
+    }
+  }
+
   const clearCanvas = () => {
     const canvas = canvasRef.current
     if (!canvas || !context) return
@@ -270,6 +316,7 @@ export default function Whiteboard() {
         isEraser={isEraser}
         setIsEraser={setIsEraser}
         clearCanvas={clearCanvas}
+        syncNow={syncNow}
       />
       <canvas
         ref={canvasRef}

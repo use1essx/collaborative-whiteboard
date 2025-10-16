@@ -8,6 +8,7 @@ interface ToolbarProps {
   isEraser: boolean
   setIsEraser: (isEraser: boolean) => void
   clearCanvas: () => void
+  syncNow?: () => void
 }
 
 export default function Toolbar({
@@ -18,6 +19,7 @@ export default function Toolbar({
   isEraser,
   setIsEraser,
   clearCanvas,
+  syncNow,
 }: ToolbarProps) {
   const colors = [
     '#000000', // Black
@@ -120,6 +122,16 @@ export default function Toolbar({
         {/* Divider */}
         <div className="w-px h-8 bg-gray-300"></div>
 
+        {/* Sync Button */}
+        {syncNow && (
+          <button
+            onClick={syncNow}
+            className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all shadow-md"
+          >
+            🔄 Sync Now
+          </button>
+        )}
+
         {/* Clear Button */}
         <button
           onClick={clearCanvas}
@@ -131,7 +143,7 @@ export default function Toolbar({
         {/* Status Indicator */}
         <div className="ml-auto flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-sm text-gray-600 font-medium">Live Sync</span>
+          <span className="text-sm text-gray-600 font-medium">Auto-sync: 1.5s</span>
         </div>
       </div>
     </div>
