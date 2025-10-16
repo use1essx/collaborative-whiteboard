@@ -143,7 +143,7 @@ export default function Toolbar({
         {/* Status Indicator */}
         <div className="ml-auto flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-sm text-gray-600 font-medium">Auto-sync: 1.5s</span>
+          <span className="text-sm text-gray-600 font-medium">Auto-sync: 2s</span>
         </div>
       </div>
     </div>
