@@ -22,6 +22,8 @@ export default function Whiteboard() {
   const [isEraser, setIsEraser] = useState(false)
   const [context, setContext] = useState<CanvasRenderingContext2D | null>(null)
   const lastPosRef = useRef<{ x: number; y: number } | null>(null)
+  const strokeBufferRef = useRef<DrawData[]>([])
+  const sendTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Define drawLine function first so it can be used in useEffects
   const drawLine = useCallback((x0: number, y0: number, x1: number, y1: number, strokeColor: string, strokeWidth: number, eraser: boolean) => {
@@ -123,7 +125,7 @@ export default function Whiteboard() {
     return () => clearInterval(syncInterval)
   }, [context, drawLine])
 
-  const sendDrawData = async (x0: number, y0: number, x1: number, y1: number) => {
+  const sendDrawData = (x0: number, y0: number, x1: number, y1: number) => {
     const drawData: DrawData = {
       x0,
       y0,
@@ -145,14 +147,37 @@ export default function Whiteboard() {
       console.error('LocalStorage error:', error)
     }
 
-    // Send to server for other users
+    // Add to buffer
+    strokeBufferRef.current.push(drawData)
+
+    // Clear existing timer
+    if (sendTimerRef.current) {
+      clearTimeout(sendTimerRef.current)
+    }
+
+    // Send batched strokes after 50ms of inactivity (or immediately if buffer is large)
+    if (strokeBufferRef.current.length >= 10) {
+      flushStrokeBuffer()
+    } else {
+      sendTimerRef.current = setTimeout(() => {
+        flushStrokeBuffer()
+      }, 50)
+    }
+  }
+
+  const flushStrokeBuffer = async () => {
+    if (strokeBufferRef.current.length === 0) return
+
+    const strokesToSend = [...strokeBufferRef.current]
+    strokeBufferRef.current = []
+
     try {
-      await fetch('/api/canvas', {
+      await fetch('/api/canvas/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(drawData),
+        body: JSON.stringify({ strokes: strokesToSend }),
       })
     } catch (error) {
       console.error('Send error:', error)
@@ -214,6 +239,8 @@ export default function Whiteboard() {
   const handleMouseUp = () => {
     setIsDrawing(false)
     lastPosRef.current = null
+    // Flush any remaining strokes when user stops drawing
+    flushStrokeBuffer()
   }
 
   const clearCanvas = () => {

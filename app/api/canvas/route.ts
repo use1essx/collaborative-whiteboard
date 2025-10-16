@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getStrokes, addStrokes, clearStrokes } from './storage'
 
 interface DrawData {
   x0: number
@@ -11,13 +12,8 @@ interface DrawData {
   timestamp: number
 }
 
-// In-memory storage for drawing data
-// In production, you'd use a database like Redis, MongoDB, or PostgreSQL
-let canvasStrokes: DrawData[] = []
-const MAX_STROKES = 10000 // Limit to prevent memory issues
-
 export async function GET() {
-  return NextResponse.json({ strokes: canvasStrokes })
+  return NextResponse.json({ strokes: getStrokes() })
 }
 
 export async function POST(request: NextRequest) {
@@ -29,14 +25,9 @@ export async function POST(request: NextRequest) {
       drawData.timestamp = Date.now()
     }
     
-    canvasStrokes.push(drawData)
+    const totalStrokes = addStrokes([drawData])
     
-    // Keep only the most recent strokes to prevent memory issues
-    if (canvasStrokes.length > MAX_STROKES) {
-      canvasStrokes = canvasStrokes.slice(-MAX_STROKES)
-    }
-    
-    return NextResponse.json({ success: true, totalStrokes: canvasStrokes.length })
+    return NextResponse.json({ success: true, totalStrokes })
   } catch (error) {
     console.error('Error saving stroke:', error)
     return NextResponse.json({ error: 'Failed to save stroke' }, { status: 500 })
@@ -44,7 +35,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
-  canvasStrokes = []
+  clearStrokes()
   return NextResponse.json({ success: true, message: 'Canvas cleared' })
 }
 
