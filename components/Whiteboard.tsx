@@ -122,7 +122,7 @@ export default function Whiteboard() {
               localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
               
               // Update last sync time to the newest stroke timestamp
-              const newestTimestamp = Math.max(...newStrokes.map(s => s.timestamp))
+              const newestTimestamp = Math.max(...newStrokes.map((s: DrawData) => s.timestamp))
               localStorage.setItem('lastSyncTime', newestTimestamp.toString())
             }
             
@@ -278,7 +278,7 @@ export default function Whiteboard() {
           localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
           
           // Update last sync time
-          const newestTimestamp = Math.max(...newStrokes.map(s => s.timestamp))
+          const newestTimestamp = Math.max(...newStrokes.map((s: DrawData) => s.timestamp))
           localStorage.setItem('lastSyncTime', newestTimestamp.toString())
         } else {
           console.log('Already up to date!')
