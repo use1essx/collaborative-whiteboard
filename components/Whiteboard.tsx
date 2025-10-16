@@ -23,6 +23,29 @@ export default function Whiteboard() {
   const [context, setContext] = useState<CanvasRenderingContext2D | null>(null)
   const lastPosRef = useRef<{ x: number; y: number } | null>(null)
 
+  // Define drawLine function first so it can be used in useEffects
+  const drawLine = useCallback((x0: number, y0: number, x1: number, y1: number, strokeColor: string, strokeWidth: number, eraser: boolean) => {
+    if (!context) return
+
+    context.beginPath()
+    context.moveTo(x0, y0)
+    context.lineTo(x1, y1)
+    
+    if (eraser) {
+      context.globalCompositeOperation = 'destination-out'
+      context.strokeStyle = 'rgba(0,0,0,1)'
+      context.lineWidth = strokeWidth * 2
+    } else {
+      context.globalCompositeOperation = 'source-over'
+      context.strokeStyle = strokeColor
+      context.lineWidth = strokeWidth
+    }
+    
+    context.lineCap = 'round'
+    context.stroke()
+    context.closePath()
+  }, [context])
+
   // Initialize canvas
   useEffect(() => {
     const canvas = canvasRef.current
@@ -63,7 +86,7 @@ export default function Whiteboard() {
         console.error('Error loading saved canvas:', error)
       }
     }
-  }, [context])
+  }, [context, drawLine])
 
   // Sync with other users - faster polling
   useEffect(() => {
@@ -99,28 +122,6 @@ export default function Whiteboard() {
 
     return () => clearInterval(syncInterval)
   }, [context, drawLine])
-
-  const drawLine = useCallback((x0: number, y0: number, x1: number, y1: number, strokeColor: string, strokeWidth: number, eraser: boolean) => {
-    if (!context) return
-
-    context.beginPath()
-    context.moveTo(x0, y0)
-    context.lineTo(x1, y1)
-    
-    if (eraser) {
-      context.globalCompositeOperation = 'destination-out'
-      context.strokeStyle = 'rgba(0,0,0,1)'
-      context.lineWidth = strokeWidth * 2
-    } else {
-      context.globalCompositeOperation = 'source-over'
-      context.strokeStyle = strokeColor
-      context.lineWidth = strokeWidth
-    }
-    
-    context.lineCap = 'round'
-    context.stroke()
-    context.closePath()
-  }, [context])
 
   const sendDrawData = async (x0: number, y0: number, x1: number, y1: number) => {
     const drawData: DrawData = {
