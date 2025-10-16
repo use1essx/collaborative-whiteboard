@@ -48,8 +48,27 @@ export default function Whiteboard() {
     }
   }, [])
 
-  // Sync with other users
+  // Load saved canvas from localStorage on mount
   useEffect(() => {
+    if (!context) return
+    
+    const savedStrokes = localStorage.getItem('canvasStrokes')
+    if (savedStrokes) {
+      try {
+        const strokes: DrawData[] = JSON.parse(savedStrokes)
+        strokes.forEach((stroke: DrawData) => {
+          drawLine(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.color, stroke.lineWidth, stroke.isEraser)
+        })
+      } catch (error) {
+        console.error('Error loading saved canvas:', error)
+      }
+    }
+  }, [context])
+
+  // Sync with other users - faster polling
+  useEffect(() => {
+    if (!context) return
+    
     const syncInterval = setInterval(async () => {
       try {
         const response = await fetch('/api/canvas')
@@ -60,21 +79,26 @@ export default function Whiteboard() {
           const lastSyncTime = parseInt(localStorage.getItem('lastSyncTime') || '0')
           const newStrokes = data.strokes.filter((stroke: DrawData) => stroke.timestamp > lastSyncTime)
           
-          newStrokes.forEach((stroke: DrawData) => {
-            drawLine(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.color, stroke.lineWidth, stroke.isEraser)
-          })
-          
           if (newStrokes.length > 0) {
+            newStrokes.forEach((stroke: DrawData) => {
+              drawLine(stroke.x0, stroke.y0, stroke.x1, stroke.y1, stroke.color, stroke.lineWidth, stroke.isEraser)
+            })
+            
+            // Save to localStorage for persistence
+            const savedStrokes = localStorage.getItem('canvasStrokes')
+            const allStrokes = savedStrokes ? JSON.parse(savedStrokes) : []
+            allStrokes.push(...newStrokes)
+            localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
             localStorage.setItem('lastSyncTime', Date.now().toString())
           }
         }
       } catch (error) {
         console.error('Sync error:', error)
       }
-    }, 1000) // Sync every second
+    }, 300) // Sync every 300ms (faster!)
 
     return () => clearInterval(syncInterval)
-  }, [context])
+  }, [context, drawLine])
 
   const drawLine = useCallback((x0: number, y0: number, x1: number, y1: number, strokeColor: string, strokeWidth: number, eraser: boolean) => {
     if (!context) return
@@ -110,6 +134,17 @@ export default function Whiteboard() {
       timestamp: Date.now()
     }
 
+    // Save to localStorage immediately for persistence
+    try {
+      const savedStrokes = localStorage.getItem('canvasStrokes')
+      const allStrokes = savedStrokes ? JSON.parse(savedStrokes) : []
+      allStrokes.push(drawData)
+      localStorage.setItem('canvasStrokes', JSON.stringify(allStrokes))
+    } catch (error) {
+      console.error('LocalStorage error:', error)
+    }
+
+    // Send to server for other users
     try {
       await fetch('/api/canvas', {
         method: 'POST',
@@ -187,12 +222,14 @@ export default function Whiteboard() {
     context.fillStyle = '#ffffff'
     context.fillRect(0, 0, canvas.width, canvas.height)
     
-    // Clear server data
+    // Clear localStorage
+    localStorage.removeItem('canvasStrokes')
+    localStorage.setItem('lastSyncTime', Date.now().toString())
+    
+    // Clear server data for other users
     fetch('/api/canvas', {
       method: 'DELETE',
-    })
-    
-    localStorage.setItem('lastSyncTime', Date.now().toString())
+    }).catch(error => console.error('Clear error:', error))
   }
 
   return (
